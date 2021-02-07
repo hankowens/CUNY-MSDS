@@ -1,0 +1,76 @@
+---
+title: "607 Week 1 - Loading and Transformation"
+author: "Henry Owens"
+date: "2/6/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+## Overview
+
+fivethirtyeight.com released a fancy, new metrics system, RAPTOR, in 2019. As a casual NBA fan who tunes in mostly for the playoffs, this is way more in the weeds than I ever get, but we will take a look at what these metrics tell us about the COVID-impaired 2021 season. I am not familiar with esoteric sports metrics, but I do know who the big names are and the general competitive landscape. I wanted to see if these stats reveal any undervalued contenders or potential stars by comparing them to the conventional Wins Above Replacement (WAR). 
+
+For brevity, I will look only at the 'Total' scores and not the individual break downs of offense, defense, etc. 
+
+```{r message=FALSE}
+library(knitr)
+```
+
+```{r}
+
+df_nba <- read.csv(
+  "https://projects.fivethirtyeight.com/nba-model/2021/latest_RAPTOR_by_player.csv")
+head(df_nba)
+```
+## Subsetting the colums of interest: Five Thirty Eight's RAPTOR Total scores and WAR Total
+### Top Players by WAR
+
+This is a more familiar statistic to me: wins above replacement. I see a list of familiar names. A pleasant surprise is the strong showing by Mike Conley, who I remember fondly from ten years ago when he was making playoff runs with the scrappy Memphis Grizzlies, but had not heard much about him since. 
+```{r}
+
+df_nba_sub <- subset(df_nba, select = c(1, 8, 11, 14, 15))
+
+head(df_nba_sub[order(-df_nba_sub$war_total),])
+```
+
+## How clever is Nate Silver?
+### RAPTOR Box Total
+The top marks in RAPTOR Box Total go mostly to players I have never heard of, except Embiid. I wondered if I would need to set a floor on minutes played to make sure these are more consequential players. I will reiterate after going over the other RAPTOR totals. However, I assumed this metric would account for minutes played. Maybe these are players who deserve more credit and attention.
+```{r}
+head(df_nba_sub[order(-df_nba_sub$raptor_box_total),])
+```
+### RAPTOR On-Off Total
+Similar list of unknowns here:
+```{r}
+head(df_nba_sub[order(-df_nba_sub$raptor_onoff_total),])
+
+```
+### RAPTOR Total
+And here:
+```{r}
+head(df_nba_sub[order(-df_nba_sub$raptor_total),])
+
+```
+
+## Adjusting for minutes played: 
+Ok here we go: for players with *above average minutes played*, we see a list of big names in the leader boards for RAPTOR stats.
+
+###RAPTOR Box Total
+```{r}
+mp_avg <- mean(df_nba$mp)
+df_nba_avgmp <- subset(df_nba, select = c(1, 8, 11, 14, 15), df_nba$mp > mp_avg)
+head(df_nba_avgmp[order(-df_nba_avgmp$raptor_box_total),])
+```
+### RAPTOR On-Off
+```{r}
+head(df_nba_avgmp[order(-df_nba_avgmp$raptor_onoff_total),])
+```
+
+### RAPTOR Total
+```{r}
+head(df_nba_avgmp[order(-df_nba_avgmp$raptor_total),])
+```
+### Overall, Nate Silver is clever, but I doubt he has cracked any secret code with RAPTOR. 
+I am much more interested in the calculation of these stats now and intrigued by the granularity of how they are calculated. NBA collects stats on every movement on the court, accounting for the skills of teammates and opponents, and so on and so forth. I do not think this is necessarily a positive thing for the game, since this coincides with the ascendance of players like James Harden, who are agonizing to watch. That may be a factor of rule changes, but his success encourages imitators, and I hope that the league can restore the excitement with more scrappy team play. 
+Harden does not appear in any of the top 5 stats examined here so there is one good indicator.
