@@ -1,0 +1,120 @@
+---
+title: "607 week 3 assignment"
+author: "Henry Owens"
+date: "2/21/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Regex in R
+
+Instructions: 
+
+Please deliver links to an R Markdown file (in GitHub and rpubs.com) with solutions to the problems below.  You may work in a small group, but please submit separately with names of all group participants in your submission.
+
+## 1. College majors
+Using the 173 majors listed in fivethirtyeight.com’s College Majors dataset [https://fivethirtyeight.com/features/the-economic-guide-to-picking-a-college-major/], provide code that identifies the majors that contain either "DATA" or "STATISTICS"
+
+```{r load-csv}
+majors <- read.csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/college-majors/majors-list.csv"))
+```
+```{r}
+majors %>% filter(str_detect(majors$Major, "DATA|STATISTICS"))
+```
+
+
+
+## 2 Data transformation
+
+Write code that transforms the data below:
+
+[1] "bell pepper"  "bilberry"     "blackberry"   "blood orange"
+
+[5] "blueberry"    "cantaloupe"   "chili pepper" "cloudberry"  
+
+[9] "elderberry"   "lime"         "lychee"       "mulberry"    
+
+[13] "olive"        "salal berry"
+
+Into a format like this:
+
+c("bell pepper", "bilberry", "blackberry", "blood orange", "blueberry", "cantaloupe", "chili pepper", "cloudberry", "elderberry", "lime", "lychee", "mulberry", "olive", "salal berry")
+```{r fruits}
+
+
+fruits <- '[1] "bell pepper"  "bilberry"     "blackberry"   "blood orange"
+
+[5] "blueberry"    "cantaloupe"   "chili pepper" "cloudberry"  
+
+[9] "elderberry"   "lime"         "lychee"       "mulberry"    
+
+[13] "olive"        "salal berry"'
+fruits <- str_extract_all(fruits, '[a-z]+\\s[a-z]+|[a-z]+')
+
+fruits <- gsub('[\"]', '', fruits)
+#fruits <- c(fruits[[1]]) ignore
+fruits
+```
+
+The two exercises below are taken from R for Data Science, 14.3.5.1 in the on-line version:
+
+
+## 3 Deciphering regex
+Describe, in words, what these expressions will match:
+
+
+* (.)\1\1 
+*   Matches three characters in a row. (You have to add \\'s to the R code to escape the \\.)
+
+* "(.)(.)\\2\\1"
+*   The first two captured dots match a series of characters, the \2 matches the second in the series and the \1 matches the first. So this will match a pair of characters followed by the reverse of that pair: for example, anna.
+
+* (..)\1
+*   This returns a repeating pair: abab, for example.
+
+* "(.).\\1.\\1"
+*   This matches with a letter that appears three times alternating with any two letters: anana, didad.
+
+* "(.)(.)(.).*\\3\\2\\1"
+*   This matches with a certain kind of palindrome of at least seven characters. The first three characters must match the last three in reverse order. There must be at least one character from the fourth spot to the fourth to last because of the but it doesn't matter what they are because of the .*. These match: racecar, raceecar, or raceasdfcar.
+
+
+```{r regex-testing}
+strs <- c("helllo", "hiii", "banana", "anna", "didad", "racecar", "raceeeeecar")
+str_match(strs, "(.)\\1\\1")
+str_match(strs, "(.)(.)\\2\\1")
+str_match(strs, "(..)\\1")
+str_match(strs, "(.).\\1.\\1")
+str_match(strs, "(.)(.)(.).*\\3\\2\\1")         
+
+```
+
+
+## 4 Writing regex
+
+Construct regular expressions to match words that:
+
+Start and end with the same character.
+
+* "\\b(.).*\1\\b"
+
+Contain a repeated pair of letters (e.g. "church" contains "ch" repeated twice.)
+
+* (.)(.).*\1\2
+
+Contain one letter repeated in at least three places (e.g. "eleven" contains three "e"s.)
+
+* (.).*\1.*\1
+
+```{r regex-test-2}
+expressions <- c("lol", "monetarism", "church", "eleven", "transylvania")
+str_match(expressions, "\\b(.).*\\1\\b")
+str_match(expressions, "(.)(.).*\\1\\2")
+str_match(expressions, "(.).*\\1.*\\1")     
+```
+
+
