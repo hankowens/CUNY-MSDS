@@ -1,0 +1,218 @@
+---
+title: "Chess rankings data analysis"
+author: "Henry Owens"
+output:
+  html_document:
+    includes:
+      in_header: header.html
+    css: ./lab.css
+    highlight: pygments
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+  pdf_document: default
+  html: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(stringr)
+library(tidyverse)
+```
+## assignment
+
+Produce csv file with the following rows:
+Player’s Name, Player’s State, Total Number of Points, Player’s Pre-Rating, and Average Pre Chess Rating of Opponents
+
+
+## Approach
+
+First I will put the messy table into a single row per player and then extract and pivot some new tables. 
+
+
+```{r load-txt-file}
+url <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607%20Project%201/tournamentinfo.txt"
+# make sure you get the raw file!
+
+# Read in lines
+# alternative: dflines <- data.frame(readLines(url))
+df <- data.frame(read.delim(url, header = FALSE, stringsAsFactors = FALSE))
+head(df)
+```
+```{r sep}
+# testing out adding the sep arg, but i think this makes it harder to get everything into one row
+df_sep <- data.frame(read.delim(url, header = FALSE, stringsAsFactors = FALSE, sep = "|"))
+head(df)
+```
+
+```{r filter-dashrows}
+dashrow <- df[1,1]
+df <- filter(df, V1 != dashrow)
+```
+```{r}
+head(df)
+```
+```{r}
+# this says make data frame with two columns: 
+#       (1) df column one from row 1 to n-1, and 
+#       (2) df column one from row 2 to n
+
+df2 <- data.frame(cbind(df[1:(nrow(df)-1),], df[2:nrow(df),]))
+
+```
+
+```{r keep-odd-rows}
+# easy peasy:
+# https://stackoverflow.com/questions/39106128/delete-every-evenuneven-row-from-a-dataset
+
+my_rows <- seq(1, nrow(df2), 2)
+df3 <- df2[my_rows,]
+```
+
+```{r paste-two-columns-into-one}
+df4 <- data.frame(paste(df3$X1, df3$X2))
+df4<- df4 %>% 
+  rename("col1" = "paste.df3.X1..df3.X2.")
+```
+
+```{r separate-columns-finally}
+
+# it worked! this might throw an error because it was expecting (an empty) 21st column
+
+col_names <- c("player_num", "player_name", "total_points", "r1", "r2", "r3","r4", "r5", "r6", "r7", "state", "uscfetc", "n", "2r1", "2r2", "2r3", "2r4", "2r5", "2r6", "2r7", "na")
+df4<- df4 %>%
+  separate(col1, into = col_names, sep = "\\|")
+```
+```{r drop-row1-cols-13-and-up}
+df4 <- df4[2:nrow(df4),1:13]
+```
+
+```{r extract-opponent-player-num-from-rounds}
+# I dont think this needs to be as.numeric (but just add %>% as.numeric() at the end if so)
+df4$player_num <- df4$player_num %>% str_trim
+df4$player_name <- df4$player_name %>% str_trim
+df4$r1 <- df4$r1 %>% str_extract("\\d+")
+df4$r2 <- df4$r2 %>% str_extract("\\d+")
+df4$r3 <- df4$r3 %>% str_extract("\\d+") 
+df4$r4 <- df4$r4 %>% str_extract("\\d+") 
+df4$r5 <- df4$r5 %>% str_extract("\\d+") 
+df4$r6 <- df4$r6 %>% str_extract("\\d+") 
+df4$r7 <- df4$r7 %>% str_extract("\\d+")
+```
+
+```{r separate-uscf-and-ratings-columns}
+# messy column:
+df5 <- df4 %>% separate(uscfetc, into = c("uscf", "ratings"), sep = "\\s/\\s*R:\\s") %>% 
+  separate(ratings, into = c("preratings", "postratings"), sep = "->")
+  
+# deal with the "P" in some of the ratings, assuming that what follows P is irrelevant
+# first regex arg is everything up to and excluding "P", OR 3 digits or more 
+# gets me what i wanted 
+df5$preratings <- str_extract(df5$preratings, pattern = "(.+(?=P))|\\d\\d\\d+")
+df5$postratings <- str_extract(df5$postratings, pattern = "(.+(?=P))|\\d\\d\\d+")  
+
+df5$preratings <- as.numeric(df5$preratings)
+df5$postratings <- as.numeric(df5$postratings)
+  
+```
+
+```{r player-ratings-table}
+df_player_ratings <- data.frame(df5[1], df5[13])
+# looks good
+```
+
+```{r feed-results-table}
+# taking player_num and round-wise opponent rating (seven columns of matches)
+df_results <- data.frame(df5[1], df5[4:10])
+# looks good
+```
+
+
+```{r pivot-on-round}
+# first column input is default first column, player_num here
+# useful explanation of pivots/tidyr here:
+# https://mgimond.github.io/ES218/Week03b.html
+df_results_pivot <- pivot_longer(df_results, cols = c(r1, r2, r3, r4, r5, r6, r7), names_to = "round", 
+                           values_to = "opponent")
+# looks good
+```
+
+```{r join-ratings-onto-opponents}
+# this is working except for where the ratings num had soething like this: 1403P5 
+df_results_joined <- left_join(df_results_pivot, df_player_ratings, by = c("opponent" = "player_num"))
+```
+
+
+
+```{r avg-opp-rating-table}
+# create table of player_num and mean opp_rating with summarize groupby
+df_opp_rating <- df_results_joined %>% 
+  group_by(player_num) %>% 
+  summarize(mean_opp_rating = mean(preratings, na.rm = TRUE))
+```
+
+
+```{r}
+#select the columns from larger table:
+df_final <- data.frame(df5[1:3], df5[11], df5[13:14])
+# join average opponent rating:
+df_final <- left_join(df_final, df_opp_rating)
+# add column for diff btw pre and post ratings
+df_final$ratingsdiff <- df_final$postratings - df_final$preratings
+```
+* There is a strong relationship between pre-rating and post-rating
+```{r}
+library(ggplot2)
+ggplot(df_final, aes(preratings, postratings,colour = ratingsdiff)) +
+  geom_point()
+
+```
+* The distribution of the difference between post and pre ratings is interesting. The median difference is zero, which I suspect is a function of the ratings algorithm. Most players dropped in the ratings, with a few making large gains over 100 and one about 700.
+
+```{r}
+m <- median(df_final$ratingsdiff)
+ggplot(df_final, aes(ratingsdiff)) +
+  geom_histogram(binwidth = 20) +
+  geom_vline(xintercept = m, color = "blue")
+
+```
+* Jacob Alexander Lavalley came in with a rating of 377 and left with 1076 after winning 3 points. Of the top six ratings gainers, only Jacob faced opponents with a mean rating below the average, but his opponents were only slightly below the mean (1379 vs. 1358). Of the top six ratings losers, four entered the tournament with above average ratings, and the mean opponent rating for all of them was below average. So I suspect that opponent rating has a big impact on the rating change. 
+
+```{r}
+head(
+  df_final[
+    order(
+      df_final$ratingsdiff, 
+      decreasing=TRUE), 
+    ]
+  )
+```
+```{r}
+mean(df_final$preratings) 
+```
+```{r}
+head(
+  df_final[
+    order(
+      df_final$ratingsdiff, 
+      decreasing=FALSE), 
+    ]
+  )
+```
+* Plotting the total points with mean opponent rating, we can see that players who faced tougher opponents won more points. That is obviously a feature of most any tournament as you face tougher opponents as you win and progress. Eyeballing the chart, I can see a tendency for higher pre-ratings (color) for players who won more points.
+
+```{r}
+ggplot(df_final, aes(total_points, mean_opp_rating, color = preratings)) +
+  geom_point()
+```
+```{r}
+ggplot(df_final, aes(preratings, total_points)) +
+  geom_point()
+```
+
+```{r write-csv}
+write.csv(df_final, "~/chess_df.csv", row.names = TRUE)
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
