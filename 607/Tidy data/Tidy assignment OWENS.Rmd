@@ -1,0 +1,163 @@
+---
+title: "Untitled"
+author: "Henry Owens"
+date: "3/7/2021"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(ggplot2)
+
+library(dplyr)
+library(lubridate)
+set.seed(2021)
+options(digits=4)
+```
+
+## Tidying Data
+
+I will look at the following data: 
+* Ecommerce data from New Zealand's statistics agency
+  Table: B - ICT - Internet sales as a proportion of total sales by Industry (Annual-Aug)
+  http://infoshare.stats.govt.nz/ViewTable.aspx?pxID=18ed91a0-2ea0-4fbf-948c-5663a6611179
+  
+* GDP Growth data from the world bank   
+https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?most_recent_year_desc=true
+
+* Air quality data in London. For this I selected nitric oxide levels detected at three sites:
+-Barking and Dagenham - Scrattons Farm
+-Croydon - Park Lane
+-Brent - Ikea
+https://www.londonair.org.uk/LondonAir/Default.aspx
+
+## New Zealand Commerce data
+
+```{r}
+url_nz <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607/Tidy%20data/BUO511201_20210308_122653_41.csv"
+df_nz <- read.csv(url_nz, header = TRUE)
+
+df_nz <- head(df_nz,-21)
+colnames(df_nz)[1] <- "year"
+
+df_nz[2, 1] <- "year"
+
+df_nz <- df_nz[-1, ]
+```
+
+```{r}
+names(df_nz) <- as.matrix(df_nz[1, ])
+df_nz <- df_nz[-c(1, 3, 5, 7, 9, 11), ]
+```
+```{r}
+# pivot the table. !year is the cols argument and means all the cols except year
+df_nz <- pivot_longer(df_nz, !year, names_to = "online_sales_percent", values_to = "n")
+# numbers as numeric
+df_nz$n <-as.numeric(df_nz$n)
+# set buckets a factor so the plot shows up in the right order
+df_nz$online_sales_percent<- factor(df_nz$online_sales_percent, levels= c("Zero", "1-10%", "11-25%", "26-50%", "More than 50%", "Don't know"))
+```
+
+
+
+```{r}
+
+ggplot(data = df_nz) + 
+  geom_col(mapping = aes(x = year, y = n, fill = online_sales_percent), 
+           position = "dodge") + 
+  ggtitle("Online sales of retail businesses in New Zealand")
+```
+* This was the data suggested by Tyler Frankenberg. I am surprised at how inconclusive these trends are. The respondants saying more than 10% of sales are online has not gone up that much, and the number saying Zero or Don't know has gone up. This is the Retail trade industry, so maybe this includes grocery stores or other businesses that just don't do much online sales.  
+
+
+
+## World Bank GDP Growth Data
+
+```{r cars, echo = TRUE}
+url <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607/Tidy%20data/API_NY.GDP.MKTP.KD.ZG_DS2_en_csv_v2_2055665.csv"
+
+worldbank <- read.csv(url, header = FALSE)
+# Turn the row with years to char
+worldbank[3,] <- as.character(worldbank[3,])
+# drop first two useless rows
+worldbank <- worldbank[-c(1,2),]
+#rename header for country
+worldbank[1,1] <- "country"
+# eliminate years before 2000 (for simplicity)
+worldbank <- worldbank[,-c(2:44)]
+# set column headers and then delete first row
+names(worldbank) <- as.matrix(worldbank[1, ])
+worldbank <- worldbank[-1,]
+# the last two rows are empty: deleting
+worldbank <- worldbank[,-c(ncol(worldbank)-1, ncol(worldbank))]
+```
+
+## Pivoting the data to Tidy format
+
+```{r}
+wb_pivot <- worldbank %>% pivot_longer(!country, names_to = "year", values_to = "gdp_growth")
+wb_pivot$gdp_growth <- as.numeric(wb_pivot$gdp_growth)
+# Filtering NA Rows
+wb_pivot <- wb_pivot %>% filter(!is.na(wb_pivot$gdp_growth)) 
+```
+
+```{r}
+wb_groupby <- wb_pivot %>% 
+  group_by(country) %>% 
+  summarise(mean = mean(gdp_growth), sd = sd(gdp_growth), max = max(gdp_growth), 
+            min = min(gdp_growth), n = n())
+```
+
+## Running hot
+
+This is a very crude, naive investigation of GDP (because of compounding you shouldn't average growth rates, etc), but I am curious if there is any relationship between having a high maximum GDP growth and average GDP growth. I wonder about the countries that have 25% or more GDP growth that is probably some kind of statistical anomaly; 125% certainly is. Not sure what to conclude about this but it is interesting. 
+
+
+```{r}
+ggplot(data = wb_groupby, mapping = aes(x = mean, y = max)) + 
+  geom_point() +
+  ggtitle("Mean and Maximum GDP Growth from 2000 to 2019")
+```
+
+
+
+## London Air Quality data
+
+```{r}
+url_london <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607/Tidy%20data/LaqnData.csv"
+london_aq <- read_csv(url_london, col_names = TRUE, cols(Value = col_double()))
+```
+* This data is already in a pretty tidy, long format, but I will transform and analyze it. 
+
+```{r}
+london_aq <- london_aq %>% separate(ReadingDateTime, c("date", "time"), sep = " ")
+# convert date column to date
+london_aq$date <- as.Date(london_aq$date, "%d/%m/%Y")
+# Filter out na rows
+london_aq <- london_aq %>% filter(!is.na(Value))
+# as numeric
+london_aq$Value <- london_aq$Value %>% as.numeric()
+```
+
+```{r}
+
+london_worst_months <- london_aq %>% group_by(month = floor_date(date, "month")) %>% 
+  summarize(amount = mean(Value))
+
+```
+
+```{r}
+arrange(london_worst_months, desc(amount))
+```
+Assuming that whatever nitric oxide chemical we are describing here is bad, it would appear that the winter months are the worse for it. 
+
+
+### Writing csv files
+```{r write-csvs}
+
+write_csv(wb_groupby, file = "gdp_summarised.csv")
+write_csv(df_nz, file = "nz_ecommerce.csv")
+write_csv(london_worst_months, file = "london_air_quality.csv")
+
+```
+
