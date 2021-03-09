@@ -1,0 +1,93 @@
+---
+title: "Tidy assignment - flights data"
+author: "Henry Owens"
+date: "3/8/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+devtools::install_github("karthik/wesanderson")
+library(wesanderson)
+```
+
+## Loading the data in original wide format
+
+I used google sheets to make a wide format csv of the table in the assignment (avoiding the empty rows and cells). 
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+arrivals <- read.csv("/Users/henrybowens/Documents/CUNY MSDS/DATA 607/Tidy and transform/arrivals.csv")
+arrivals
+```
+
+## Pivot the data to tidy format
+Using pivot_longer (which is the newer version of "gather", I learned), we can turn the numerical columns into a single column accompanied by a categorical column for the five destinations. This is a tidy data set where each row is an observation of flights per airline, per arrival status, and per destination. Take a look!
+
+Note: I found it useful to use "!airline & !status" arg to exclude the categorical columns and run the pivot as desired.
+
+```{r pivot-into-long-format}
+arrivals <- arrivals %>% pivot_longer(!airline & !status, names_to = "destination", values_to = "flights")
+arrivals
+```
+
+## Airline performance
+How do the airlines stack up by on time vs delayed?
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+arrivals %>% group_by(airline, status) %>% 
+  summarise(flights = sum(flights))
+``` 
+
+
+## Plotting the flights by destination and airline
+
+Of these the big destinations are AM West to Phoenix (overwhelmingly) and Alaska to Seattle. 
+
+```{r plot-flights}
+ggplot(data = arrivals, 
+       mapping = aes(x = destination, y = flights, fill = airline)) + 
+  geom_col(position = "dodge") + 
+  scale_fill_manual(values=wes_palette(n=2, name="GrandBudapest2")) +
+  coord_flip() +
+  ggtitle("Which airline flies where?")
+  
+```
+
+## Plotting flight arrival performance
+
+Looking at the proportion of on time to delayed arrivals, by destination and airline. We can see that generally Alaska has a better portion of on time arrivals. The destinations seem to have relatively similar on-time proportions (i.e., SF is the lowest and Phoenix is the highest) for both airlines, with Alaska performing better at each destination. 
+
+```{r plot-performance}
+ggplot(data = arrivals, 
+       mapping = aes(x = destination, y = flights, fill = status)) + 
+  geom_col(position = "fill") + 
+  facet_wrap(~ airline) + 
+  scale_fill_manual(values=wes_palette(n=2, name="GrandBudapest1")) +
+  coord_flip() +
+  ggtitle("Proportions of on time vs delayed arrivals, by destination and airline")
+
+```
+
+## Wait one minute: A Paradox!
+
+We have a paradox where Alaska airlines consistently performs better than AM West at every destination, BUT in the aggregate more AM West flights land on time. This is very interesting!! I can see that it has something to do with the big volume discrepancies between Phoenix and Seattle, so arithmetically it could sense, but intuitively it is hard to comprehend. 
+
+```{r plot-basic- performance}
+ggplot(data = arrivals, 
+       mapping = aes(x = airline, y = flights, fill = status)) + 
+  geom_col(position = "fill") + 
+  scale_fill_manual(values=wes_palette(n=2, name="Zissou1")) +
+  ggtitle("Proportions of on time vs delayed arrivals, by airline") +
+  coord_flip()
+
+```
+
+## Conclusions
+
+I suppose that, all else equal, I would be tempted to book a flight with Alaska over AM West, since destination-wise their flights are more likely to arrive on time. But I would have to think more about this. I forget the name of this paradox, but this is a great illustration of it.
+
