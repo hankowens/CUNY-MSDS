@@ -1,0 +1,72 @@
+---
+title: "Project 2 607 Owens Part 2"
+author: "Henry Owens"
+date: "3/15/2021"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(lubridate)
+set.seed(2021)
+options(digits=4)
+```
+
+## Tidying Data
+
+I will look at the following data: 
+
+* GDP Growth data from the world bank   
+https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?most_recent_year_desc=true
+
+## World Bank GDP Growth Data
+This data from the world bank describes annual gdp growth figures from just about every country and region from about 1940s to present although a lot countries didn't exist as independent countries in the 40s (Vietnam, Algeria, Ghana, etc.) and/or had no data until recently, so I am focusing on data since 2000. 
+
+```{r cars, echo = TRUE}
+url <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607/Tidy%20data/API_NY.GDP.MKTP.KD.ZG_DS2_en_csv_v2_2055665.csv"
+
+worldbank <- read.csv(url, header = FALSE)
+# Turn the row with years to char
+worldbank[3,] <- as.character(worldbank[3,])
+# drop first two useless rows
+worldbank <- worldbank[-c(1,2),]
+#rename header for country
+worldbank[1,1] <- "country"
+# eliminate years before 2000 (for simplicity)
+worldbank <- worldbank[,-c(2:44)]
+# set column headers and then delete first row
+names(worldbank) <- as.matrix(worldbank[1, ])
+worldbank <- worldbank[-1,]
+# the last two rows are empty: deleting
+worldbank <- worldbank[,-c(ncol(worldbank)-1, ncol(worldbank))]
+```
+
+## Pivoting the data to Tidy format
+
+```{r}
+wb_pivot <- worldbank %>% pivot_longer(!country, names_to = "year", values_to = "gdp_growth")
+wb_pivot$gdp_growth <- as.numeric(wb_pivot$gdp_growth)
+# Filtering NA Rows
+wb_pivot <- wb_pivot %>% filter(!is.na(wb_pivot$gdp_growth)) 
+```
+
+```{r}
+wb_groupby <- wb_pivot %>% 
+  group_by(country) %>% 
+  summarise(mean = mean(gdp_growth), sd = sd(gdp_growth), max = max(gdp_growth), 
+            min = min(gdp_growth), n = n())
+```
+
+## Running hot
+
+This is a very crude, naive investigation of GDP (because of compounding you shouldn't average growth rates, and I dont have the values to weight the rates, but I am curious if there is any relationship between having a high maximum GDP growth and average GDP growth. I wonder about the countries that have 25% or more GDP growth that is probably some kind of statistical anomaly; 125% certainly is. Not sure what to conclude about this but it is interesting. 
+
+
+```{r}
+ggplot(data = wb_groupby, mapping = aes(x = mean, y = max)) + 
+  geom_point() +
+  ggtitle("Mean and Maximum GDP Growth from 2000 to 2019")
+```

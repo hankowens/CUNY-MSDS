@@ -1,0 +1,139 @@
+---
+title: "Project 2 607 Owens Part 3"
+author: "Henry Owens"
+date: "3/15/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(lubridate)
+set.seed(2021)
+options(digits=4)
+```
+## London Air Quality data: oxides of nitrogen
+
+```{r message=FALSE, error=FALSE}
+
+url_london <- "https://www.londonair.org.uk/london/asp/downloadspecies.asp?species=NOX&site1=WM6&site2=BG2&site3=&site4=&site5=&site6=&start=1-jan-2020&end=1-jan-2021&res=6&period=hourly&units="
+london_aq <- read_csv(url_london, col_names = TRUE)
+```
+
+
+* This website has a ton of data on different pollutants at dozens of sites across London. I am looking at oxides of nitrogen, a biproduct of combustion, as measured per hour at two sites in London.
+
+I chose two sites that had mostly complete data for NOx judging by the plot tool on the website and their locations: Westminster - Oxford Street, in central London (near Parliament and Buckingham Palace), and Barking and Dagenham - Scrattons Farm, about 14 miles by car to the east (admittedly the name was funny too).
+
+This data is already in a pretty tidy, long format, but I will transform and analyze it. There are missing values, and for the two sites i selected they are not for the same datetimes. 
+I will see about the differences in 
+
+There are some gaps in the data between the two data collection sites, so I will replace the NAs with the total mean for the site. There is probably a better way to do that, but hopefully this won't skew or bias the data too much. 
+
+There are 17k rows of data which I want to condense into more comprehensible format.
+
+```{r}
+london_aq <- london_aq %>% separate(ReadingDateTime, c("date", "time"), sep = " ")
+# convert date column to date
+london_aq$date <- as.Date(london_aq$date, "%d/%m/%Y")
+
+# as numeric
+london_aq$Value <- london_aq$Value %>% as.numeric()
+head(london_aq)
+```
+
+Subsetting the data by site 
+
+```{r subset by site}
+wm_aq <- london_aq %>% filter(Site == "WM6")
+bg_aq <- london_aq %>% filter(Site == "BG2")
+
+```
+ 
+Handling the NA values
+
+```{r}
+# replacing NAs with means
+# na.rm = TRUE lets you take mean with NAs in vector/df col 
+wm_mean <- mean(wm_aq$Value, na.rm = TRUE)
+bg_mean <- mean(bg_aq$Value, na.rm = TRUE)
+
+# replace_na 
+wm_aq <- wm_aq %>% replace_na(list(Value = wm_mean))
+bg_aq <- bg_aq %>% replace_na(list(Value = bg_mean))
+head(wm_aq)
+```
+
+## Analyzing the data by month and time of day
+
+First I will look at the NOx levels by monthly mean.
+
+```{r}
+# this group-by with floor_date adds a column with ymd format but for the first of the month for each
+# day in the month - nifty
+wm_worst_months <- wm_aq %>% group_by(month = floor_date(date, "month")) %>% 
+  summarize(nox_level = mean(Value))
+bg_worst_months <- bg_aq %>% group_by(month = floor_date(date, "month")) %>% 
+  summarize(nox_level = mean(Value))
+# set date format to month name (this is cool)
+month_levels <- c(format(wm_worst_months$month, "%B"))
+wm_worst_months$month <- factor(format(wm_worst_months$month, "%B"), levels = month_levels)
+bg_worst_months$month <- factor(format(bg_worst_months$month, "%B"), levels = month_levels)
+```
+
+## What months have more NOx pollution? 
+
+```{r}
+p1 <- ggplot(wm_worst_months, mapping = aes(month, nox_level)) +
+  geom_col() + 
+  ggtitle("Westminster") +
+  ylim(0, 80) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p2 <- ggplot(bg_worst_months, mapping = aes(month, nox_level)) +
+  geom_col() + 
+  ggtitle("Barking and Dagenham") +
+  ylim(0, 80) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+grid.arrange(p1, p2, nrow = 1)
+# i got the x label angle code from stack overflow
+# https://stackoverflow.com/questions/1330989/rotating-and-spacing-axis-labels-in-ggplot2
+```
+
+It is interesting that at two places a dozen miles apart the monthly mean of oxides of nitrogen air pollution, mostly which come from automobile traffic and power plants (link below) would follow a similar but not identical trend and to massively different scale. 
+
+http://www.icopal-noxite.co.uk/nox-problem/nox-pollution.aspx
+
+## NOx levels by time of day
+```{r determine worst time of day}
+wm_worst_time <- wm_aq %>% group_by(time) %>% 
+  summarize(nox_level = mean(Value))
+bg_worst_time <- bg_aq %>% group_by(time) %>% 
+  summarize(nox_level = mean(Value))
+
+```
+
+## What time of day is worse for NOx
+
+NOx is largely a product of road traffic, so you would think rush hour would be the worst times. 
+
+```{r}
+p3 <- ggplot(wm_worst_time, mapping = aes(time, nox_level)) +
+  geom_col() + 
+  ylim(0, 55) +
+  theme(axis.text.x=element_text(angle=90, hjust=1)) +
+  ggtitle("Westminster") 
+
+p4 <- ggplot(bg_worst_time, mapping = aes(time, nox_level)) +
+  geom_col() + 
+  theme(axis.text.x=element_text(angle=90, hjust=1)) +
+  ggtitle("Barking and Dagenham") +
+  ylim(0, 55)
+grid.arrange(p3, p4, nrow = 2)
+```
+
+Here we see even more divergent trends by time of day. The underlying data is hourly, so this should be a pretty good representation of hourly levels across the year, and still we see a early morning rush hour peak in Barking and a much more dramatic evening peak in Westminster (with no accompanying morning peak). Maybe the prevailing winds and other factors send the pollution in different ways across time and space. Very interesting!
+

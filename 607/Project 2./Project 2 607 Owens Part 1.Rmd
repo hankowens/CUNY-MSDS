@@ -1,0 +1,92 @@
+---
+title: "Project 2 607 Owens Part 1"
+author: "Henry Owens"
+date: "3/15/2021"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(lubridate)
+set.seed(2021)
+options(digits=4)
+```
+
+## Tidying Data
+
+I will look at the following data: 
+* Ecommerce data from New Zealand's statistics agency
+  Table: B - ICT - Internet sales as a proportion of total sales by Industry (Annual-Aug)
+  http://infoshare.stats.govt.nz/ViewTable.aspx?pxID=18ed91a0-2ea0-4fbf-948c-5663a6611179
+  
+* GDP Growth data from the world bank   
+https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG?most_recent_year_desc=true
+
+* Air quality data in London. For this I selected oxides of nitrogen (NO and NO2) levels detected at on site:
+-Barking and Dagenham - Scrattons Farm
+
+https://www.londonair.org.uk/LondonAir/Default.aspx
+
+## New Zealand Commerce data
+
+```{r}
+url_nz <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607/Tidy%20data/BUO511201_20210308_122653_41.csv"
+df_nz <- read.csv(url_nz, header = TRUE)
+
+df_nz <- head(df_nz,-21)
+colnames(df_nz)[1] <- "year"
+
+df_nz[2, 1] <- "year"
+
+df_nz <- df_nz[-1, ]
+df_nz
+```
+## Cleaning the table
+
+I decided to drop the "Don't Know" responses to reduce some of the noise in the data. 
+```{r clean the table}
+# Set first row as headers
+names(df_nz) <- as.matrix(df_nz[1, ])
+# Drop the odd rows with no data
+df_nz <- df_nz[-c(seq(1, 11, 2)), ]
+# drop the "dont know" responses
+df_nz <- df_nz[, -7]
+df_nz
+```
+
+## Tidying the table
+
+```{r tidy the table}
+# pivot the table. !year is the cols argument and means all the cols except year
+df_nz1 <- pivot_longer(df_nz, !year, names_to = "online_sales_percent", values_to = "n")
+# numbers as numeric
+df_nz1$n <-as.numeric(df_nz1$n)
+# set buckets as factor so the plot shows up in the right order
+df_nz1$online_sales_percent<- factor(df_nz1$online_sales_percent, levels= c("Zero", "1-10%", "11-25%", "26-50%", "More than 50%"))
+head(df_nz1, 10)
+```
+
+## Plotting the data
+
+```{r}
+p1 <- ggplot(data = df_nz1) + 
+  geom_col(mapping = aes(x = year, y = n, fill = online_sales_percent), 
+           position = "dodge") + 
+  ggtitle("Online sales of retail businesses in New Zealand, 2008 to 2018") +
+  scale_fill_brewer(palette = "Set1") +
+  ylab("count")
+
+p2 <- ggplot(data = df_nz1, mapping = aes(x = year, y = n, fill = online_sales_percent)) + 
+  geom_col(position = "fill") + 
+  ggtitle("Online sales of retail businesses in New Zealand (proportion of respondents), 2008 to 2018") +
+  scale_fill_brewer(palette = "Set1") +
+  ylab("proportion")
+
+grid.arrange(p1, p2, nrow = 2)
+```
+## Conclusion
+
+This was the data suggested by Tyler Frankenberg. Plotting the proportions of the respondents reveals some interesting trends, but also raises some data quality questions. Why were there far fewer online sales in 2016 than in the preceeding and following reports? Overall there is a trend of more businesses reporting online sales in the over 10% buckets. The zero bucket fluctuated significantly but appears to have an upward trend. I would have thought this would be a more obvious trend towards online sales. This is the Retail trade industry, so maybe it includes grocery stores, gas stations, or other businesses that just don't do much online sales.  
