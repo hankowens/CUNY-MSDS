@@ -1,6 +1,7 @@
 <?xml version = '1.0'?>
 
 <booktable>
+	
 	<book1>
 		<title>The Savage Sword of Conan</title>
 		<author1>Roy Thomas</author1>
@@ -9,6 +10,7 @@
 		<year>2019</year>
 		<publisher>Marvel</publisher>
 	</book1>
+	
 	<book2>
 		<title>Conan the Invincible</title>
 		<author1>Robert Jordan</author1>
@@ -17,6 +19,7 @@
 		<year>1982</year>
 		<publisher>Tor</publisher>
 	</book2>
+	
 	<book3>
 		<title>Conan: the Sword of Skelos</title>
 		<author1>Andrew Offutt</author1>
@@ -25,4 +28,5 @@
 		<year>1979</year>
 		<publisher>Bantam</publisher>
 	</book3>
+	
 </booktable>
