@@ -1,26 +1,26 @@
 {
-	“book1”:{
-		“Title”: “The Savage Sword of Conan”,
-		“Author1”: “Roy Thomas”,
-		“Author2”: “John Buscema”,
-		“Genre”: “Comics”,
-		“Year”: “2019”,
-		“Publisher”: “Marvel”
+	"book1":{
+		"Title": "The Savage Sword of Conan",
+		"Author1": "Roy Thomas",
+		"Author2": "John Buscema",
+		"Genre": "Comics",
+		"Year": "2019",
+		"Publisher": "Marvel"
 	},
-	“book2”:{
-		“Title”: “Conan the Invincible”,
-		“Author1”: “Robert Jordan”,
-		“Author2”: null,
-		“Genre”: “Sword and sorcery”,
-		“Year”: “1982”,
-		“Publisher”: “Tor”
+	"book2":{
+		"Title": "Conan the Invincible",
+		"Author1": "Robert Jordan",
+		"Author2": null,
+		"Genre": "Sword and sorcery",
+		"Year": "1982",
+		"Publisher": "Tor"
 	},
-	“book3”:{
-		“Title”: “Conan: the Sword of Skelos”,
-		“Author1”: “Andrew Offutt”,
-		“Author2”: null,
-		“Genre”: “Sword and sorcery”,
-		“Year”: “1979”,
-		“Publisher”: “Bantam”
+	"book3":{
+		"Title": "Conan: the Sword of Skelos",
+		"Author1": "Andrew Offutt",
+		"Author2": null,
+		"Genre": "Sword and sorcery",
+		"Year": "1979”,
+		"Publisher": "Bantam"
 	}
 }
