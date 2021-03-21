@@ -1,0 +1,38 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2578
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fmodern\fcharset0 Courier;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\fs26 \cf0 \expnd0\expndtw0\kerning0
+<?xml version = '1.0'?>\
+\
+<booktable>\
+	<book1>\
+		<title>The Savage Sword of Conan</title>\
+		<author1>Roy Thomas</author1>\
+		<author2>John Buscema</author2>\
+		<genre>Comics</genre>\
+		<year>2019</year>\
+		<publisher>Marvel</publisher>\
+	</book1>\
+	<book2>\
+		<title>Conan the Invincible</title>\
+		<author1>Robert Jordan</author1>\
+		<author2> </author2>\
+		<genre>Sword and sorcery</genre>\
+		<year>1982</year>\
+\pard\pardeftab720\partightenfactor0
+\cf0 		<publisher>Tor</publisher>\
+	</book2>\
+	<book3>\
+		<title>Conan: the Sword of Skelos</title>\
+		<author1>Andrew Offutt</author1>\
+		<author2> </author2>\
+		<genre>Sword and sorcery</genre>\
+		<year>1979</year>\
+		<publisher>Bantam</publisher>\
+	</book3>\
+</booktable>}
