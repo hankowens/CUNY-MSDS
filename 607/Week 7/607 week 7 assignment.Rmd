@@ -1,0 +1,67 @@
+---
+title: "607 week 7 assignment"
+author: "Henry Owens"
+date: "3/20/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Working with HTML, XML, and JSON files in R
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(RCurl)
+library(XML)
+library(methods)
+library(jsonlite)
+library(knitr)
+```
+
+## Assigning the URLs
+
+```{r}
+url_html <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607/Week%207/Conan%20books%20-%20html.html" 
+url_xml <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607/Week%207/conan%20books%20-%20xml.xml"
+url_json <- "https://raw.githubusercontent.com/hankowens/CUNY-MSDS/main/607/Week%207/conan%20books%20-%20json.json"
+```
+
+## Importing the XML data
+
+```{r xml}
+get_xml <- xmlToDataFrame(getURL(url_xml))
+
+get_xml
+```
+
+## Importing HTML data
+
+```{r}
+get_html <- getURL(url_html)
+table_html <- as.data.frame(readHTMLTable(get_html, stringsAsFactors = FALSE))
+table_html
+```
+## Importing JSON data
+
+```{r}
+raw_json <- fromJSON(getURL(url_json))
+
+raw_json <- lapply(raw_json, function(x) {
+  x[sapply(x, is.null)] <- NA
+  unlist(x)})
+table_json <- as.data.frame(do.call("rbind", raw_json))
+table_json[1]
+```
+
+## Results
+
+These three data formats result in similar but not identical tables in R. The way I did it, the XML was easiest with a single function to put into the data frame. HTML was a little more complicated, but JSON was the most complicated because it had an issue dealing with the null values where where was no Author2. 
+
+
+```
