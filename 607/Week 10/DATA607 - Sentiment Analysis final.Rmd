@@ -1,0 +1,329 @@
+---
+title: "DATA607 - Sentiment Analysis"
+author: "Henry Owens"
+date: "4/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(tidytext)
+library(janeaustenr)
+library(textdata)
+library(dplyr)
+library(stringr)
+library(gutenbergr)
+library(syuzhet)
+```
+
+## Tidying data: practice with Jane Austen
+
+This is a replication of the code from Text Mining with R, chapter 2. 
+
+
+
+```{r chapter-2}
+tidy_books <- austen_books() %>%
+  group_by(book) %>%
+  mutate(linenumber = row_number(),
+         chapter = cumsum(str_detect(text,
+                                     regex("^chapter [\\divxlc]",
+                                           ignore_case = TRUE)))) %>%
+  ungroup() %>% 
+  unnest_tokens(word, text)
+```
+
+
+```{r}
+
+jane_austen_sentiment <- tidy_books %>%
+  inner_join(tidytext::get_sentiments("bing")) %>%
+  count(book, index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+```{r chapter-2-continued}
+
+ggplot(jane_austen_sentiment, aes(index, sentiment, fill = book)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~book, ncol = 2, scales = "free_x")
+
+```
+
+```{r}
+pride_prejudice <- tidy_books %>% 
+  filter(book == "Pride & Prejudice")
+```
+
+
+```{r}
+afinn <- pride_prejudice %>% 
+  inner_join(tidytext::get_sentiments("afinn")) %>% 
+  group_by(index = linenumber %/% 80) %>% 
+  summarise(sentiment = sum(value)) %>% 
+  mutate(method = "AFINN")
+
+bing_and_nrc <-  pride_prejudice %>% 
+    inner_join(tidytext::get_sentiments("bing")) %>%
+    mutate(method = "Bing et al.") %>%
+  count(method, index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+```{r}
+afinn <- pride_prejudice %>% 
+  inner_join(get_sentiments("afinn")) %>% 
+  group_by(index = linenumber %/% 80) %>% 
+  summarise(sentiment = sum(value)) %>% 
+  mutate(method = "AFINN")
+
+bing_and_nrc <- bind_rows(
+  pride_prejudice %>% 
+    inner_join(get_sentiments("bing")) %>%
+    mutate(method = "Bing et al."),
+  pride_prejudice %>% 
+    inner_join(get_sentiments("nrc") %>% 
+                 filter(sentiment %in% c("positive", 
+                                         "negative"))
+    ) %>%
+    mutate(method = "NRC")) %>%
+  count(method, index = linenumber %/% 80, sentiment) %>%
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0) %>% 
+  mutate(sentiment = positive - negative)
+```
+
+```{r}
+bind_rows(afinn, 
+          bing_and_nrc) %>%
+  ggplot(aes(index, sentiment, fill = method)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~method, ncol = 1, scales = "free_y")
+```
+
+# Sentiment analysis of science fiction books
+
+## Gutenberg library and syuzhet lexicon
+
+The Gutenberg data set has the text of many many books, mostly books that are quite old and in the public domain. 
+
+https://cran.r-project.org/web/packages/gutenbergr/vignettes/intro.html  
+
+I decided to run a sentiment analysis using the `syuzhet` lexicon on all of the science fiction books in the Gutenberg. Syuzhet was designed to be used on either single word tokens or longer pieces of text like sentences or tweets. "Syuzhet" is a Russian term used in narratology and describing narrative structures. This package was built by Matthew Jockers and the NLP group at Stanford.  
+
+https://cran.r-project.org/web/packages/syuzhet/vignettes/syuzhet-vignette.html  
+
+First I looked at the metadata to find information on the books and the dataset. I made a subset of the metadata dataframe containing only SF titles, in English, and with the text available. I also joined on the birthdate of the author.
+
+```{r}
+guten <- gutenberg_metadata
+```
+
+
+
+```{r}
+# filtering out science fiction titles.
+# excluding Lucian of Samosata (born AD 120; sounds cool though) because that will mess up my time series
+
+sf_metadata <- guten %>% 
+  filter(has_text == TRUE & grepl("Science Fiction", gutenberg_bookshelf) & 
+           language == "en" & gutenberg_author_id != 1997) %>%
+  left_join(gutenberg_authors) %>% 
+  select(-alias, -aliases, -wikipedia)
+# i cannot get !is.na(birthdate) to work in this filter so have to do separate
+# there are 279 NA rows in birthdate
+sf_metadata %>% filter(is.na(birthdate)) %>% nrow()
+#drop na birthdate rows
+sf_metadata <- sf_metadata %>% filter(!is.na(birthdate))
+sf_metadata %>% filter(is.na(birthdate)) %>% nrow()
+```
+
+My analysis will look at the sentiment of the sci fi books plotted against the birthdate of the author. I am curious if the different generations of authors had different takes on science fiction. The data strangely didnt have the publication date for all of the books. The birthdate was the closest proxy.  
+
+I suspect there will be some fluctuation in the sentiments as the genre grapples with technology's role in society and other factors. 
+
+You can see below most of the authors in the data were born between 1850 and 1950, which unfortunately does not include the postwar generations and some great sci fi, but still covers a good time span of major technological change.  
+
+
+```{r}
+sf_metadata %>% count(birthdate) %>% 
+  ggplot(aes(x= birthdate)) + geom_histogram()
+```
+
+## Sample of sci fi books
+
+I tried running the syuzhet function on the whole data set at first, but had to do some debugging. Since it is very slow computationally i decided to start with a sample of 50 books and work out the process on those.  
+
+I took a random sample of 50 book ID numbers and downloaded those. 
+
+```{r download-sample, eval=FALSE}
+#download the sample of books
+sf_title_ids <- sf_metadata$gutenberg_id
+sf_books_sample <- gutenberg_download(sample(sf_title_ids, 50))
+
+# get rid of the under_scores used for italics. not sure if this is necessary but these will be "important" words so dont want to lose the sentiment!
+sf_books_sample$text <- str_replace_all(sf_books_sample$text, "_", "")
+
+# there are about 23k rows of blank text, deleting
+sf_books_sample <- sf_books_sample %>% filter(text != "")
+
+```
+
+### get_sentiment using syuzhet lexicon  
+
+I then ran `get_sentiment` on those lines from the books, adding the score for each row in a new column. 
+
+```{r sentiment-analysis-sample, eval=FALSE}
+# run analysis of each line 
+sf_books_sample <- sf_books_sample %>% 
+  mutate(score = get_sentiment(text, method = "syuzhet"))
+```
+
+
+```{r, eval=FALSE}
+# writing csv after download and after get_sentiment
+write.csv(sf_books_sample, file = "sf_books_sample.csv")
+```
+
+
+```{r}
+# if running again to save time just read csv
+sf_books_sample <- read.csv("sf_books_sample.csv")
+```
+
+
+
+### Plotting
+
+Using group_by and summarise, I plotted first the mean sentiment score for each book against the author's year of birth, then the sum score. I added `geom_smooth()` to give an idea of the "center" of the sentiment distributions. (Not sure if this is the best application of it but it seemed elucidating.)
+
+```{r plot-mean-sample}
+# create table to join on birthdates
+title_author_birthdate <- left_join(select(gutenberg_metadata, gutenberg_id, author, gutenberg_author_id), 
+                       select(gutenberg_authors, gutenberg_author_id, birthdate))
+
+# make a group_by for the titles 
+sf_books_sample %>% 
+  group_by(gutenberg_id) %>% 
+  summarise(book_sentiment = mean(score)) %>% 
+  left_join(title_author_birthdate, by = "gutenberg_id") %>% 
+  ggplot(aes(birthdate, book_sentiment)) + 
+  geom_point() +
+  geom_smooth() +
+  ylab("Book Sentiment (mean)") + 
+  xlab("Author Birthdate") +
+  ggtitle("Science Fiction Book Sentiment by Author Birthdate (syuzhet mean of lines)")
+
+```
+```{r plot-sums-sample}
+# make a group_by for the titles 
+sf_books_sample %>% 
+  group_by(gutenberg_id) %>% 
+  summarise(book_sentiment = sum(score)) %>% 
+  left_join(title_author_birthdate, by = "gutenberg_id") %>% 
+  ggplot(aes(birthdate, book_sentiment)) + 
+  geom_point() +
+  geom_smooth() +
+  ylab("Book Sentiment (sum)") + 
+  xlab("Author Birthdate") +
+  ggtitle("Science Fiction Book Sentiment by Author Birthdate (syuzhet sum)")
+
+```
+
+
+
+
+## Sentiment analysis for all Sci Fi Books
+
+The sample exercise worked so I proceed on to the full data set of sci fi books. 
+
+These code chunks took a _very_ long time to run. The download took a few minutes, but get_sentiment() took just _over an hour_ to run all 1.8 million lines of text. This was an interesting experience in using write_csv and read_csv and setting code chunks to `eval=FALSE` 
+
+### Download   
+```{r download-all, eval = FALSE}
+#download the all sci fi books
+sf_books <- gutenberg_download(sf_title_ids)
+
+# get rid of the under_scores used for italics. not sure if this is necessary but these will be "important" words so dont want to lose the sentiment!
+sf_books$text <- str_replace_all(sf_books$text, "_", "")
+
+# delete rows of blank text
+sf_books <- sf_books %>% filter(text != "")
+
+# writing csv so i dont have to download again
+write.csv(sf_books, file = "sf_books.csv")
+```
+
+```{r read-csv-if-needed}
+# if running again to save time just read csv
+# sf_books <- read.csv("sf_books.csv")
+```
+
+
+### get_sentiment using syuzhet lexicon
+
+This step took over an hour, so debugging with the sample was the way to go. 
+
+```{r sentiment-analysis-all, eval=FALSE}
+start_time <- Sys.time()
+# run analysis of each line
+sf_books <- sf_books %>% 
+  mutate(score = get_sentiment(text, method = "syuzhet"))
+
+end_time <- Sys.time()
+end_time - start_time
+```
+
+```{r, eval=FALSE}
+# write csv
+write.csv(sf_books, file = "sf_books_with_sentiment.csv")
+```
+
+```{r read-csv}
+# if running again to save time just read csv
+sf_books <- read.csv("sf_books_with_sentiment.csv")
+```
+
+
+### Plotting 
+
+I used the same plot technique as above for some interesting results. The earliest generations of sci fi writers, born before 1850, wrote with positive emotional valence. The generations born in the late 19th and early 20th centuries had a much more mixed sentiment. There were also many many more sci fi books written in this time. Presumably the horrors of world wars and nuclear holocaust were in tension with the promises of penicillin and polio vaccines and the space race.  
+
+It would be super interesting to see how more recent generations of sci fi writers have evolved!
+
+```{r plot-all}
+sf_books %>% 
+  group_by(gutenberg_id) %>% 
+  summarise(book_sentiment = mean(score)) %>% 
+  left_join(title_author_birthdate, by = "gutenberg_id") %>% 
+  ggplot(aes(birthdate, book_sentiment)) + 
+  geom_point() +
+  geom_smooth() +
+  ylab("Book Sentiment") + 
+  xlab("Author Birthdate") +
+  ggtitle("Science Fiction Book Sentiment by Author Birthdate (syuzhet mean of lines)")
+
+```
+
+
+```{r plot-all2}
+# make a group_by for the titles 
+sf_books %>% 
+  group_by(gutenberg_id) %>% 
+  summarise(book_sentiment = sum(score)) %>% 
+  left_join(title_author_birthdate, by = "gutenberg_id") %>% 
+  ggplot(aes(birthdate, book_sentiment)) + 
+  geom_point() +
+  geom_smooth() +
+  ylab("Book Sentiment (sum)") + 
+  xlab("Author Birthdate") +
+  ggtitle("Science Fiction Book Sentiment by Author Birthdate (syuzhet sum)")
+
+```
