@@ -1,0 +1,78 @@
+---
+title: 'Discussion post: Recommender systems'
+author: "Henry Owens"
+date: "4/22/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Your task is to analyze an existing recommender system that you find interesting.  You should:
+
+Perform a Scenario Design analysis as described below.  
+Consider whether it makes sense for your selected recommender system to perform scenario design twice, once for the organization (e.g. Amazon.com) and once for the organization's customers.
+
+Attempt to reverse engineer what you can about the site, from the site interface and any available information that you can find on the Internet or elsewhere.
+
+Include specific recommendations about how to improve the site's recommendation capabilities going forward. 
+Create your report using an R Markdown file, and create a discussion thread with a link to the GitHub repo where your Markdown file notebook resides.  You are not expected to need to write code for this discussion assignment.
+
+## eBay Recommender System
+
+eBay is one of the ancient internet sites that sells probably everything. My dad was using it obsessively more than 20 years ago to buy and sell guitar and amplifier parts. This included vacuum tubes made in the Soviet Union. 
+
+1. Who are the target users?
+
+There are two buckets of users: buyers and sellers.
+
+The original target users for eBay buyers were collectors, bargain hunters, hobbyists, etc. More recently they have become an generic ecommerce/retail platform selling anything from back to school supplies to household goods to apparel, so virtually anyone looking to buy something online. 
+
+The sellers include anything from flea market and auction house veterans to regular people selling their old stuff. Now giant brands and retailers have eBay stores. 
+
+I will focus on the types of buyers that are most relevant for the recommender system.
+
+2. What are their key goals?
+
+Users are looking to find items they want to buy. They could be looking for something specific or something rare or serendipitous that they didn't even know they were looking for. 
+
+3. How can eBay help them achieve those goals?
+
+In a basic sense eBay will show users potential items to buy and entice them  with certain features. They can show items similar to ones users have looked at recently but did not buy or show items that are complementary to things they did buy or were purchased by similar users.  
+
+
+I think it would make sense for eBay to do scenario design from their own perspective/that of sellers and that of the buyer. It is in eBay's interest that sellers are successful and they don't migrate to other platforms. From the perspective of sellers, the recommender system should help them move inventory, and could be especially helpful niche products, that would benefit from highly targeted recommendation. 
+
+## Recommender in action
+
+According to a [blog post by eBay engineer, Yuri Brovman](https://tech.ebayinc.com/engineering/complementary-item-recommendations-at-ebay-scale/), the website uses a few approaches to recommendation. Its complementary item algorithm builds a user-category-matrix of all the categories of items for each user. The categories are assigned a value of 1 if the user has purchased and 0 if not. Then they use cosine similarity to find the K-nearest neighbor categories to make suggestions. The recommender looks at the purchase as the "seed" category and then recommends other categories.  
+
+For example if you buy a smart phone, the seed category is Cell Phones & Accessories:Cell Phones & Smartphones, and the top recommended category would be Cell Phones & Accessories:Cell Phone Accessories:Cases, Covers & Skins.  
+
+They have a system for whether or not to also include the seed category in the recommendation, based on the categories. If you buy a smart phone you probably won't buy another smart phone. But I bought a watch off of eBay a few months ago and am seeing a lot of watches recommended, which makes sense because people collect watches, not smart phones.  
+
+> "We capture this logic with the following heuristic: we calculate d, the mean # of purchases / user for each category. If the value of d for a specific seed category is above a threshold, we include the seed category as a related category, and exclude it otherwise."
+
+After the algorithm identifies related categories based on the seed category, the next step is to generate candidate items within those categories or what they call a Recall Set. There are several approaches to this including, Related Products, Co-views, Related Queries, Complementary of Similar.
+
+Related Products is used if the seed item can be mapped to a product. A product is something that would have an ISBN or model number. If you buy an iphone 12 they can map that and recommend the correct charger or case. If you buy a "vintage budweiser t-shirt" there isn't really any product to map to. 
+
+The user-category-matrix uses the purchase as a signal, but there are other signals such as views and searches. The blog author notes that views are weaker signals than purchases, but users tend to have more views than purchases and will create a higher volume of recommended products. 
+
+eBay also has a method called DeepRecs, described as follows,   
+
+> "This recall set uses a text-based deep learning model, incorporating the title, aspects, and category information, from both seed and recommendation candidate item pairs, trained with the implicit co-purchase signal as the target. The co-purchase probability between the seed and recommendation candidate items within the related categories is then calculated using the neural network architecture on a GPU cluster, and the top-K results are returned. Comparing item embeddings, which incorporates textual content information, instead of implicit item vectors directly, as in the case of collaborative filtering, helps address the sparsity issue endemic to eBay data." 
+
+
+## How to improve
+
+I will say that the recommendations from eBay are a little strange. A few months ago I bought a vintage watch for \$80, and now they think I am in the market for a \$8000 Rolex. I imagine that is more of a targeted ad than a recommendation, but if their recommender can find some more cheap vintage watches, I might actually buy one. I have wasted a lot of time over the years looking at vintage motorcycles, old woodworking tools, clothes, etc. that they should have a good profile of what I would buy. If they could show me more recommendations of the actual cool stuff on eBay instead of ads for kitchenaid mixers or samsung tablets, that would be great. If I wanted to see those ads I would go to Amazon ...or probably any other website.  
+
+Sources:
+
+https://tech.ebayinc.com/engineering/complementary-item-recommendations-at-ebay-scale/ 
+https://dl.acm.org/doi/10.1145/2959100.2959166
+https://arxiv.org/abs/1812.10546
