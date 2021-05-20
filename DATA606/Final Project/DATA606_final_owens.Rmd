@@ -1,0 +1,324 @@
+---
+title: 'Highspeed internet: logistic regression (DATA 606 final project)'
+author: "HENRY OWENS"
+date: "May 20, 2021"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+## Broadband internet: key to prosperity?
+
+Research Question: Are higher income households more likely to have highspeed internet?
+
+Having highspeed internet at home is key to participating in society and the economy. The Federal Communications Commission is currently rolling out a program to give families $50 a month for broadband internet. However, even before the pandemic, there was a conversation about the "digital divide." 
+
+The Census Bureau collects data on households across the country on many topics including whether or not a household has highspeed internet. I downloaded data from IPUMS, a Census affiliated organization, to investigate the relationship between income and internet. After cleaning the dataset, I had 2.8 million observations of households that should be representative of the US population (according to the the Census documentation). The data includes household income, population density, whether or not a house has highspeed internet, and whether the home is owned or rented. Simple data visualizations indicate that higher income is associated with having highspeed internet. 
+
+For a more robust analysis, I used income, population density and home ownership status in a logistic regression to predict whether the household has highspeed internet. I ran models with all possible combinations of these variables and all three were statistically significant in the respective models. Using all three together produced the lowest AIC. The second lowest AIC was the model with income and density as explantory variables.   
+
+My investigation conforms with the broader conversation about inequality and technology that households with lower income and in rural areas, for which density is my proxy, have less access to high speed internet. Some limitations of my research are that I could have included more demographic variables. Perhaps controlling for age and education would reveal more about the relationship. However, the relationship is pretty clear with these three explanatory variables.  
+
+
+## Broadband internet in the news  
+*The government is making broadband more affordable — for now. How do we make that permanent?*
+*Acting FCC Chairwoman Jessica Rosenworcel on new subsidies to connect low-income Americans to the internet.*
+
+https://www.marketplace.org/shows/marketplace-tech/the-government-is-making-broadband-more-affordable-for-now-how-do-we-make-that-permanent/
+
+## FCC: Emergency Broadband Benefit  
+" *The Emergency Broadband Benefit is an FCC program to help families and households struggling to afford internet service during the COVID-19 pandemic. This new benefit will connect eligible households to jobs, critical healthcare services, virtual classrooms, and so much more.* "
+https://www.fcc.gov/broadbandbenefit
+
+
+## Data Preparation
+
+I downloaded data from IPUMS on household characteristics with a focus on income and high-speed internet access, along with other demographic and geographic information. There are 3.2 million observations, and a lot of the rows are NA (or equivalent) for the variables of interest.
+
+```{r setup, echo=TRUE, results='hide', warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(include = TRUE)
+library(ggplot2)
+library(tidyverse)
+library(scales)
+library(psych)
+options(scipen=999)
+# load data leaving out columns
+
+
+# 9999999 is the code for NA remove rows
+#df2 <- df1 %>% filter(HHINCOME != 9999999)
+#rm(df1)
+```
+
+
+```{r eval=FALSE, include=FALSE}
+# this was for reading the big csv but i dont need to do the null cols each time
+#  columns <- c("NULL", "NULL", "NULL", "NULL", NA, "NULL",NA, NA, "NULL", NA, NA, "NULL", NA, NA, NA, "NULL", "NULL", "NULL", "NULL", NA, NA)
+#  df1 <- read.csv("usa_00002.csv", colClasses = columns)
+#  write_csv(df1, "usa_00003.csv")
+```
+
+```{r echo=TRUE, message=FALSE}
+df1 <- read_csv("usa_00003.csv")
+```
+
+
+
+```{r}
+# 9999999 is the code for NA remove rows
+df2 <- df1 %>% filter(HHINCOME != 9999999)
+rm(df1)
+```
+
+
+
+### Cleaning data
+Here I assign more interpretable values to the categorical variables based on the Census codes for the response values.  
+
+For the sake of simplicity I will filter out the rows where household = group quarters or other, and the rows where the internet response is NA. "Most household-level variables are not available for group quarters ..."  
+
+```{r cleaning}
+# Filter for proper households, excluding group quarters, vacant units, fragments, other group quarters
+df2 <- df2 %>% filter(GQ == 1 | GQ == 2 | GQ == 5)
+
+#remove NAs from internet access
+df2 <- df2 %>% filter(CIHISPEED != 0)
+
+# internet: 20 is code for no, 10 is yes but there are also sub codes like 12 is fiber only
+# mutate and ifelse are very useful
+df2 <- df2 %>% mutate(CIHISPEED = ifelse(CIHISPEED == 20, "no", "yes"))
+
+# assigning ownership column values
+df2 <- df2 %>% mutate(OWNERSHP = ifelse(OWNERSHP == 1, "own/mortgage", "rent"))
+
+# assigning foodstamp recipiency values
+df2 <- df2 %>% mutate(FOODSTMP = ifelse(FOODSTMP == 1, "no", "yes"))
+
+```
+
+```{r rename-columns-etc}
+# rename for clarity
+df2 <- df2 %>% rename(highspeed = CIHISPEED, foodstamps = FOODSTMP, ownership = OWNERSHP, income = HHINCOME)
+# lowercase
+df2 <- df2 %>% rename_with(tolower)
+
+# factor level for highspeed
+df2$highspeed <- factor(df2$highspeed, levels = c("yes", "no"))
+df2$ownership <- factor(df2$ownership, levels = c("own/mortgage", "rent"))
+df2$foodstamps  <- factor(df2$foodstamps, levels = c("yes", "no"))
+```
+
+### Summary Statistics
+
+In the data, 82.6% of the sample have highspeed internet and 17.4% do not. 
+
+```{r echo=FALSE}
+prop.table(table(df2$highspeed))
+prop.table(table(df2$ownership))
+# helpful: https://uc-r.github.io/descriptives_categorical
+```
+## More Summary Statistics  
+
+The mean income for no highspeed internet is \$82k and for those with highspeed it is \$122K.  
+
+```{r echo=FALSE}
+df2 %>% 
+  group_by(highspeed) %>% 
+  summarise(count = n(), mean_income = mean(income))
+```
+
+## Summary continued
+
+A higher proportion of home owners have highspeed internet than 
+
+```{r echo=FALSE}
+
+table(df2$highspeed, df2$ownership)
+prop.table(table(df2$highspeed, df2$ownership))
+```
+
+
+
+```{r include=FALSE}
+income_describe <- describe(df2$income)
+income_describe
+```
+
+## Plotting income
+
+Household income is moderately right skewed. I think the density plot best shows this. I added median and trimmed mean vlines, but with the scale it is not very discernable.  
+ 
+Income is pretty close to normally distributed and meets the assumption.  
+
+
+```{r echo=FALSE}
+
+median <- income_describe$median
+trimmed <- income_describe$trimmed
+
+ggplot(df2) + geom_density(aes(income)) +
+  geom_vline(xintercept = median, color = "blue") +
+  geom_vline(xintercept = trimmed, color = "red") +
+  ggtitle("Density distribution of household income") +
+  xlab("Household Income (USD")
+```
+
+## Boxplot: first attempt  
+
+This first boxplot is hard to read because of the outliers and the skew.   
+
+```{r boxplot1, echo=FALSE}
+df2 %>% ggplot(aes(income, highspeed)) + geom_boxplot() + scale_x_continuous(labels = comma) 
+
+```
+
+## Trimmed Boxplot  
+
+Removing the outliers shows that there is significant difference in medians between the two groups, but a lot of overlap.   
+```{r boxplot2, echo=FALSE, warning=FALSE}
+lower <- min(df2$income)
+upper <- as.integer(quantile(df2$income)[4]) + 1.5 * IQR(df2$income)
+df2 %>% ggplot(aes(income, highspeed)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  scale_x_continuous(labels = comma, limits = c(lower, upper))
+
+```
+
+## Another Boxplot  
+
+Using facet wrap on the trimmed boxplot we see that at either state of home ownership, higher-income households are more likely to have highspeed internet.  
+
+```{r boxplot3, echo=FALSE, warning=FALSE}
+# facet wrap ownership
+df2 %>% ggplot(aes(income, highspeed)) + 
+  geom_boxplot(outlier.shape = NA) + 
+  scale_x_continuous(labels = comma, limits = c(lower, upper)) + 
+  facet_wrap(vars(ownership), dir = "v")
+
+```
+
+## Another perspective
+
+These density plots look nice but you cannot beat the boxplot.  
+```{r echo=FALSE}
+# source https://www.r-bloggers.com/2012/12/density-plot-with-ggplot/
+pd1 <- df2 %>% 
+  ggplot(aes(income)) + 
+  geom_density(aes(group = highspeed, colour = highspeed, 
+                   fill = highspeed), alpha = 0.3) + 
+  scale_x_continuous(labels = comma) +
+  ylim(0, 0.000011) + 
+  theme(legend.position = c(0.8, 0.8))
+
+# source https://www.r-bloggers.com/2012/12/density-plot-with-ggplot/
+pd2 <- df2 %>% 
+  ggplot(aes(income)) + 
+  geom_density(aes(group = ownership, colour = ownership, 
+                   fill = ownership), alpha = 0.3) + 
+  scale_x_continuous(labels = comma) +
+  ylim(0, 0.000011) + 
+  theme(legend.position = c(0.8, 0.8))
+
+gridExtra::grid.arrange(pd1, pd2, ncol = 1)
+```
+
+
+
+```{r eval=FALSE, include=FALSE}
+# df2$highspeed <- as.character(df2$highspeed)
+# df2$ownership <- as.character(df2$ownership)
+df2 <- df2 %>% mutate(has_highspeed = ifelse(highspeed == "no", 0, 1))
+
+class(df2$ownership)
+#model1 <- glm(highspeed ~ income + ownership, df2, family = binomial(link = logit))
+
+model1 <- glm(highspeed ~ income + ownership, df2, family = binomial)
+
+summary(model1)
+```
+
+## Running the Model
+
+
+```{r}
+df2 <- df2 %>% mutate(has_highspeed = ifelse(highspeed == "no", 0, 1))
+
+model2 <- glm(has_highspeed ~ income + ownership, df2, family = binomial)
+
+
+summary(model2)
+```
+
+I was initially confused by the result, which gave a negative coefficient for income. I made a new response variable where yes = 1 and no = 0, and the model for that came back inverted, with a positive coefficient for income and a negative coefficient for people who rent their homes. That makes a lot more sense!
+
+## Equation  
+\begin{align*}
+\log\left( \frac{\hat{p}}{1 - \hat{p}} \right) = 1.0628 - 0.000005\times Income + -0.08213\times Ownership_rent
+\end{align*}
+
+## Model modification
+
+Removing ownership status from the model resulted in a higher AIC. 
+
+```{r}
+model3 <- glm(has_highspeed ~ income, df2, family = binomial)
+
+summary(model3)
+```
+
+## Adding variables
+
+Adding population density to the model lowered the AIC quite a bit. More density is associated with a higher likelihood of having highspeed internet. This tracks with the "digital divide" infrastructure conversation.  
+
+```{r}
+model4 <- glm(has_highspeed ~ income + ownership + density, df2, family = binomial)
+
+
+summary(model4)
+```
+## Best model
+
+\begin{align*}
+\log\left( \frac{\hat{p}}{1 - \hat{p}} \right) = 1.0628 - 0.000005\times Income + -0.1312\times Ownership_rent + 0.000014\times Population Density
+\end{align*}
+
+## Other Models
+
+Other combinations yielded less relevant results.  
+
+```{r eval=FALSE, include=FALSE}
+model5 <- glm(has_highspeed ~ density, df2, family = binomial)
+
+summary(model5)
+```
+
+
+```{r eval=FALSE, include=FALSE}
+model6 <- glm(has_highspeed ~ income + density, df2, family = binomial)
+
+summary(model6)
+```
+
+
+```{r eval=FALSE, include=FALSE}
+model7 <- glm(has_highspeed ~ density + ownership, df2, family = binomial)
+
+summary(model7)
+```
+
+
+## Conclusion  
+
+This relationship seems pretty clear from these models. 
+
+Limitations: 
+* Comparing predictions to the observations and inspecting the residuals would tell us more about the validity/robustness of the model
+* This is an observational study so we cannot conclude anything about causation
+* I am curious about why the P-values are identical from every model/variable--seems suspicious
+
+Further investigation could incorporate more variables like age or occupation. The IPUMS data has hundreds of variables I could have included if I had more time. 
+
+## Thank you!  
+
+
+
